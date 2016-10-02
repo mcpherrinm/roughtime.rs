@@ -1,4 +1,14 @@
 [root]
 name = "roughtime"
 version = "0.1.0"
+dependencies = [
+ "untrusted 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
+]
 
+[[package]]
+name = "untrusted"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[metadata]
+"checksum untrusted 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)" = "5d9bc0e6e73a10975d1fbff8ac3541e221181b0d8998351600fb5523de634c0d"

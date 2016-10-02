@@ -4,3 +4,4 @@ version = "0.1.0"
 authors = ["mmc <git@mcpherrin.ca>"]
 
 [dependencies]
+untrusted = "0.3.1"
