@@ -96,6 +96,9 @@ fn main() {
           \x00\x00\x00\x00\
           \x80\x80\x80\x80\
           \xFF\xFF\xFF\xFF");
-    println!("Some stuff: {:?}", parse_message(ttags));
-
+    let parsed = parse_message(ttags).unwrap();
+    println!("Some stuff: {:?}", parsed);
+    assert_eq!(parsed[&1], b"\x00\x00\x00\x00");
+    assert_eq!(parsed[&2], b"\x80\x80\x80\x80");
+    assert_eq!(parsed[&4294967295], b"\xFF\xFF\xFF\xFF")
 }
