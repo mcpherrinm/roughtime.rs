@@ -50,12 +50,14 @@ fn read_message(reader: &mut untrusted::Reader) -> Result<HashMap<u32, Vec<u8>>,
     let mut map = HashMap::new();
     // Handle the last tag specially because it goes to end of input
     let last_tag = tags.pop().unwrap();
+    let mut offset=0;
     for (i, tag) in tags.iter().enumerate() {
         // Use offsets to get input slice
         let next_offset = offsets[i];
-        let input = try!(reader.skip_and_get_input(next_offset as usize));
+        let input = try!(reader.skip_and_get_input((next_offset-offset) as usize));
         let v: Vec<u8> = input.as_slice_less_safe().into();
         map.insert(*tag, v);
+        offset = next_offset;
     }
     map.insert(last_tag, reader.skip_to_end().as_slice_less_safe().into());
     Ok(map)
@@ -80,4 +82,20 @@ fn main() {
 
     let tags = untrusted::Input::from(b"\x02\x00\x00\x00\x04\x00\x00\x00\x05\x03\x02\x00\x04\x03\x02\x01\x00\x00\x00\x00\x80\x80\x80\x80");
     println!("Some stuff: {:?}", parse_message(tags));
+
+    let ttags = untrusted::Input::from(
+        b"\x03\x00\x00\x00\
+          \
+          \x04\x00\x00\x00\
+          \x08\x00\x00\x00\
+          \
+          \x01\x00\x00\x00\
+          \x02\x00\x00\x00\
+          \xFF\xFF\xFF\xFF\
+          \
+          \x00\x00\x00\x00\
+          \x80\x80\x80\x80\
+          \xFF\xFF\xFF\xFF");
+    println!("Some stuff: {:?}", parse_message(ttags));
+
 }
