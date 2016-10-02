@@ -19,8 +19,7 @@ fn read_message(reader: &mut untrusted::Reader) -> Result<HashMap<u32, Vec<u8>>,
         return Ok(HashMap::new());
     }
     // There are num_tags-1 offsets
-    // DOC ERROR: Docs say min(0, num_tags-1), and not max.
-    let mut offsets: Vec<u32> = Vec::with_capacity(num_tags as usize);
+    let mut offsets: Vec<u32> = Vec::with_capacity(num_tags-1 as usize);
     for _ in 0..num_tags-1 {
         // DOC CLARITY: Do offsets need to be increasing and unique, or can tags
         // share and/or overlap values? (Doesn't seem to be explicitly forbidden)
