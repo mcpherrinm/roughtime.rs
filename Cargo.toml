@@ -5,3 +5,4 @@ authors = ["mmc <git@mcpherrin.ca>"]
 
 [dependencies]
 untrusted = "0.3.1"
+rand = "0.3"

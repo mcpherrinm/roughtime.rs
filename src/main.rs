@@ -1,7 +1,10 @@
 extern crate untrusted;
+extern crate rand;
 
 use std::collections::BTreeMap;
 use std::vec::Vec;
+use std::io::Write;
+use rand::Rng;
 
 /// Reads a little endian u32 from the reader.  If the input doesn't have 4 bytes,
 /// then we return untrusted::EndOfInput.
@@ -144,10 +147,26 @@ fn test_tag() {
 }
 
 
+
 fn main() {
     // Really rough time.
-    println!("Ding Dong! It is 9 PM.");
+    //println!("Ding Dong! It is 9 PM.");
 
+    // Create a request with a random 64 byte nonce and PAD
+    // 1 tag count, 2 tags + 1 offset = 4 words = 16 bytes
+    // 1024 - 16 - 64 = 944 pad bytes
+    let mut nonce_val = [0x44; 64];
+    rand::thread_rng().fill_bytes(&mut nonce_val);
+    let pad = [0; 944];
+    let mut req = BTreeMap::new();
+    req.insert(tag::NONC, Vec::from(&nonce_val[..]));
+    req.insert(tag::PAD, Vec::from(&pad[..]));
+    let req_msg = encode_message(&req);
+    std::io::stdout().write(&req_msg);
+}
+
+#[test]
+fn test_message_roundtrip() {
 
     let notags = untrusted::Input::from(b"\x00\x00\x00\x00");
     println!("Empty message: {:?}", parse_message(notags));
