@@ -5,6 +5,7 @@ use std::collections::BTreeMap;
 use std::vec::Vec;
 use std::io::Write;
 use rand::Rng;
+use std::net::UdpSocket;
 
 /// Reads a little endian u32 from the reader.  If the input doesn't have 4 bytes,
 /// then we return untrusted::EndOfInput.
@@ -162,7 +163,15 @@ fn main() {
     req.insert(tag::NONC, Vec::from(&nonce_val[..]));
     req.insert(tag::PAD, Vec::from(&pad[..]));
     let req_msg = encode_message(&req);
-    std::io::stdout().write(&req_msg);
+    std::io::stderr().write(&req_msg);
+
+    let mut socket = UdpSocket::bind("0.0.0.0:0").unwrap();
+    socket.send_to(&req_msg, "173.194.202.158:2002");
+    let mut inb = [0;1500];
+    let (amt, src) = socket.recv_from(&mut inb).unwrap();
+    std::io::stderr().write(&inb[..amt]);
+    let msg = parse_message(untrusted::Input::from(&inb[..amt])).unwrap();
+    println!("Got message: {:?}", msg);
 }
 
 #[test]
