@@ -71,6 +71,42 @@ fn parse_message(input: untrusted::Input) -> Result<BTreeMap<u32, Vec<u8>>, ()> 
     }
 }
 
+// append_u32 appends the four bytes from a to v, little endian.
+fn append_u32(mut a: u32, v: &mut Vec<u8>) {
+    for _ in 0..4 {
+        v.push((a & 0xFF) as u8);
+        a = a >> 8;
+    }
+}
+
+#[test]
+fn test_append_u8() {
+    let mut v = vec![0xAA];
+    append_u32(0x12BC23CD, &mut v);
+    assert_eq!(vec![0xAA, 0xCD, 0x23, 0xBC, 0x12], v);
+}
+
+fn encode_message(message: &BTreeMap<u32, Vec<u8>>) -> Vec<u8> {
+    let mut d = vec![];
+    let num_tags = message.iter().len() as u32;
+    let mut write = num_tags;
+    let mut offset = 0;
+    // Since there's n-1 offsets to write out, we have the loop write num_tags as the first
+    // value.  That removes any icky business with figuring out if we're in the first or last value.
+    for (_, v) in message {
+        append_u32(write, &mut d);
+        offset += v.len() as u32;
+        write = offset;
+    }
+    for &k in message.keys() {
+        append_u32(k, &mut d);
+    }
+    for (_, v) in message {
+        d.extend(v);
+    }
+    return d;
+}
+
 // TODO: Use enum instead?
 mod tag {
     // A macro or const fn could reduce potential for error here.
@@ -136,5 +172,11 @@ fn main() {
     println!("Some stuff: {:?}", parsed);
     assert_eq!(parsed[&1], b"\x00\x00\x00\x00");
     assert_eq!(parsed[&2], b"\x80\x80\x80\x80");
-    assert_eq!(parsed[&4294967295], b"\xFF\xFF\xFF\xFF")
+    assert_eq!(parsed[&4294967295], b"\xFF\xFF\xFF\xFF");
+
+    let reencoded = encode_message(&parsed);
+    assert_eq!(ttags.as_slice_less_safe(), &reencoded[..]);
+    let reparsed = parse_message(untrusted::Input::from(&reencoded[..])).unwrap();
+    assert_eq!(parsed, reparsed);
+    println!("Reparsed stuff: {:?}", reparsed)
 }
