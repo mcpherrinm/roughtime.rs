@@ -1,6 +1,6 @@
 extern crate untrusted;
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::vec::Vec;
 
 /// Reads a little endian u32 from the reader.  If the input doesn't have 4 bytes,
@@ -13,13 +13,13 @@ fn read_u32(reader: &mut untrusted::Reader) -> Result<u32, untrusted::EndOfInput
     Ok(b1 | b2 << 8 | b3 << 16 | b4 << 24)
 }
 
-fn read_message(reader: &mut untrusted::Reader) -> Result<HashMap<u32, Vec<u8>>, untrusted::EndOfInput> {
+fn read_message(reader: &mut untrusted::Reader) -> Result<BTreeMap<u32, Vec<u8>>, untrusted::EndOfInput> {
     let num_tags = try!(read_u32(reader));
     if num_tags == 0 {
-        return Ok(HashMap::new());
+        return Ok(BTreeMap::new());
     }
     // There are num_tags-1 offsets
-    let mut offsets: Vec<u32> = Vec::with_capacity(num_tags-1 as usize);
+    let mut offsets: Vec<u32> = Vec::with_capacity((num_tags-1) as usize);
     for _ in 0..num_tags-1 {
         // DOC CLARITY: Do offsets need to be increasing and unique, or can tags
         // share and/or overlap values? (Doesn't seem to be explicitly forbidden)
@@ -46,7 +46,7 @@ fn read_message(reader: &mut untrusted::Reader) -> Result<HashMap<u32, Vec<u8>>,
     }
 
     // Now read the values and build the map
-    let mut map = HashMap::new();
+    let mut map = BTreeMap::new();
     // Handle the last tag specially because it goes to end of input
     let last_tag = tags.pop().unwrap();
     let mut offset=0;
@@ -64,12 +64,49 @@ fn read_message(reader: &mut untrusted::Reader) -> Result<HashMap<u32, Vec<u8>>,
 
 /// parse_message loads the tag -> value map in roughtime.
 /// This interface isn't very efficient, as it copies everything.
-fn parse_message(input: untrusted::Input) -> Result<HashMap<u32, Vec<u8>>, ()> {
+fn parse_message(input: untrusted::Input) -> Result<BTreeMap<u32, Vec<u8>>, ()> {
     match input.read_all(untrusted::EndOfInput, read_message) {
         Ok(n) => Ok(n),
         Err(_) => Err(())
     }
 }
+
+// TODO: Use enum instead?
+mod tag {
+    // A macro or const fn could reduce potential for error here.
+    // Request tags:
+    pub const NONC: u32 = 0x434e4f4e;
+    pub const PAD : u32 = 0xff444150;
+    // Reply tags:
+    pub const SREP: u32 = 0x50455253;
+    pub const ROOT: u32 = 0x544f4f52;
+    pub const MIDP: u32 = 0x5044494d;
+    pub const RADI: u32 = 0x49444152;
+    pub const SIG : u32 = 0x00474953;
+    pub const INDX: u32 = 0x58444e49;
+    pub const PATH: u32 = 0x48544150;
+    pub const CERT: u32 = 0x54524543;
+    pub const DELE: u32 = 0x454c4544;
+    pub const MINT: u32 = 0x544e494d;
+    pub const MAXT: u32 = 0x5458414d;
+    pub const PUBK: u32 = 0x4b425550;
+}
+
+#[test]
+fn test_tag() {
+    use tag::*;
+    let tags = vec![(NONC, b"NONC"), (PAD, b"PAD\xff"), (SREP, b"SREP"), (ROOT, b"ROOT"),
+        (MIDP, b"MIDP"), (RADI, b"RADI"), (SIG, b"SIG\x00"), (INDX, b"INDX"), (PATH, b"PATH"),
+        (CERT, b"CERT"), (DELE, b"DELE"), (MINT, b"MINT"), (MAXT, b"MAXT"), (PUBK, b"PUBK")];
+    for (tag, bytes) in tags {
+        let v = untrusted::Input::from(bytes).read_all(untrusted::EndOfInput, read_u32).unwrap();
+        if tag != v {
+            println!("{} encoded to 0x{:x} != 0x{:x}", std::str::from_utf8(&bytes[..]).unwrap(), v, tag);
+        }
+        assert_eq!(tag, v);
+    }
+}
+
 
 fn main() {
     // Really rough time.
