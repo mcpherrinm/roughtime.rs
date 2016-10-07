@@ -1,5 +1,6 @@
 extern crate untrusted;
 extern crate rand;
+extern crate time;
 
 use std::collections::BTreeMap;
 use std::vec::Vec;
@@ -16,6 +17,33 @@ fn read_u32(reader: &mut untrusted::Reader) -> Result<u32, untrusted::EndOfInput
     let b4 = try!(reader.read_byte()) as u32;
     Ok(b1 | b2 << 8 | b3 << 16 | b4 << 24)
 }
+
+fn read_u64(reader: &mut untrusted::Reader) -> Result<u64, untrusted::EndOfInput> {
+    let b1 = try!(reader.read_byte()) as u64;
+    let b2 = try!(reader.read_byte()) as u64;
+    let b3 = try!(reader.read_byte()) as u64;
+    let b4 = try!(reader.read_byte()) as u64;
+    let b5 = try!(reader.read_byte()) as u64;
+    let b6 = try!(reader.read_byte()) as u64;
+    let b7 = try!(reader.read_byte()) as u64;
+    let b8 = try!(reader.read_byte()) as u64;
+    Ok(b1 | b2 << 8 | b3 << 16 | b4 << 24 | b5 << 32 | b6 << 40 | b7 << 48 | b8 << 56)
+}
+
+fn parse_u32(input: untrusted::Input) -> Result<u32, ()> {
+    match input.read_all(untrusted::EndOfInput, read_u32) {
+        Ok(n) => Ok(n),
+        Err(_) => Err(())
+    }
+}
+
+fn parse_u64(input: untrusted::Input) -> Result<u64, ()> {
+    match input.read_all(untrusted::EndOfInput, read_u64) {
+        Ok(n) => Ok(n),
+        Err(_) => Err(())
+    }
+}
+
 
 fn read_message(reader: &mut untrusted::Reader) -> Result<BTreeMap<u32, Vec<u8>>, untrusted::EndOfInput> {
     let num_tags = try!(read_u32(reader));
@@ -147,12 +175,9 @@ fn test_tag() {
     }
 }
 
-
-
-fn main() {
-    // Really rough time.
-    //println!("Ding Dong! It is 9 PM.");
-
+// Creates a request
+// TODO: Need to also return the nonce so we can check it's in the reply.
+fn new_req() -> Vec<u8> {
     // Create a request with a random 64 byte nonce and PAD
     // 1 tag count, 2 tags + 1 offset = 4 words = 16 bytes
     // 1024 - 16 - 64 = 944 pad bytes
@@ -162,16 +187,59 @@ fn main() {
     let mut req = BTreeMap::new();
     req.insert(tag::NONC, Vec::from(&nonce_val[..]));
     req.insert(tag::PAD, Vec::from(&pad[..]));
-    let req_msg = encode_message(&req);
-    std::io::stderr().write(&req_msg);
+    encode_message(&req)
+}
 
+#[derive(Debug)]
+struct ResponseMessage {
+    srep: SignedResponse,
+    sig: Vec<u8>,
+    indx: u32,
+    path: Vec<u8>,
+    cert: Vec<u8>
+}
+
+#[derive(Debug)]
+struct SignedResponse {
+    root: Vec<u8>,
+    midp: u64,
+    radi: u32,
+}
+
+// Convert microseconds since epoch into a Timespec
+fn from_microseconds(t: u64) -> time::Timespec {
+    time::Timespec {
+        sec: (t / 1000000) as i64,
+        nsec: ((t % 1000000) * 1000) as i32
+    }
+}
+
+fn parse_response(input: untrusted::Input) -> ResponseMessage {
+    let mut msg = parse_message(input).unwrap();
+    let mut signed = parse_message(untrusted::Input::from(&msg[&tag::SREP][..])).unwrap();
+    ResponseMessage {
+        srep: SignedResponse {
+            root: signed.remove(&tag::ROOT).unwrap(),
+            midp: parse_u64(untrusted::Input::from(&signed.remove(&tag::MIDP).unwrap()[..])).unwrap(),
+            radi: parse_u32(untrusted::Input::from(&signed.remove(&tag::RADI).unwrap()[..])).unwrap(),
+        },
+        sig: msg.remove(&tag::SIG).unwrap(),
+        indx: parse_u32(untrusted::Input::from(&msg.remove(&tag::INDX).unwrap()[..])).unwrap(),
+        path: msg.remove(&tag::PATH).unwrap(),
+        cert: msg.remove(&tag::CERT).unwrap(),
+    }
+}
+
+fn main() {
     let mut socket = UdpSocket::bind("0.0.0.0:0").unwrap();
-    socket.send_to(&req_msg, "173.194.202.158:2002");
+    socket.send_to(&new_req(), "173.194.202.158:2002");
     let mut inb = [0;1500];
     let (amt, src) = socket.recv_from(&mut inb).unwrap();
     std::io::stderr().write(&inb[..amt]);
-    let msg = parse_message(untrusted::Input::from(&inb[..amt])).unwrap();
+    let msg = parse_response(untrusted::Input::from(&inb[..amt]));
     println!("Got message: {:?}", msg);
+    let now = time::at(from_microseconds(msg.srep.midp));
+    println!("Ding Dong! It is {}", now.rfc822());
 }
 
 #[test]
