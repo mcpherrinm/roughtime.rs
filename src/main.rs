@@ -232,7 +232,7 @@ fn parse_response(input: untrusted::Input) -> ResponseMessage {
 
 fn main() {
     let mut socket = UdpSocket::bind("0.0.0.0:0").unwrap();
-    socket.send_to(&new_req(), "173.194.202.158:2002");
+    socket.send_to(&new_req(), "roughtime.sandbox.google.com:2002");
     let mut inb = [0;1500];
     let (amt, src) = socket.recv_from(&mut inb).unwrap();
     std::io::stderr().write(&inb[..amt]);
